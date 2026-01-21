@@ -629,7 +629,6 @@ def main():
             WAITING_GENDER: [CallbackQueryHandler(receive_gender)],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
-        per_message=True,
     )
     
     # Регистрация обработчиков

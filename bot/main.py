@@ -630,7 +630,6 @@ def main():
         },
         fallbacks=[CommandHandler("cancel", cancel)],
         per_message=True,
-        per_message=True,
     )
     
     # Регистрация обработчиков

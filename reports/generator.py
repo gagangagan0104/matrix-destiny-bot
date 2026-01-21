@@ -1,19 +1,79 @@
-"""Генератор отчетов"""
-from typing import Dict
+"""Генератор отчетов с интеграцией сбора данных с веб-сайтов"""
+from typing import Dict, List, Optional
 from matrix_calculator.models import MatrixResult, MatrixData
 from PIL import Image, ImageDraw, ImageFont
 import io
 import os
+import logging
+import asyncio
+
+from data_collector import (
+    WebScraper, 
+    TextProcessor, 
+    ImageProcessor, 
+    MATRIX_SOURCES,
+    MATRIX_KEYWORDS
+)
+
+logger = logging.getLogger(__name__)
 
 
 class ReportGenerator:
-    """Генератор текстовых и визуальных отчетов"""
+    """Генератор текстовых и визуальных отчетов с расширенной информацией"""
     
-    def __init__(self):
-        pass
+    def __init__(self, enable_web_scraping: bool = True):
+        """
+        Инициализация генератора отчетов
+        
+        Args:
+            enable_web_scraping: Включить ли сбор информации с веб-сайтов
+        """
+        self.enable_web_scraping = enable_web_scraping
+        self.text_processor = TextProcessor()
     
-    def generate_text_report(self, data: MatrixData, result: MatrixResult) -> str:
+    async def _collect_additional_info(self, result: MatrixResult) -> Dict[str, any]:
+        """Собирает дополнительную информацию с веб-сайтов"""
+        if not self.enable_web_scraping:
+            return {
+                'summary': '',
+                'detailed_info': '',
+                'images': []
+            }
+        
+        try:
+            # Подготавливаем конфигурацию источников
+            sources_config = [
+                {
+                    'url': source['url'],
+                    'selectors': source.get('selectors')
+                }
+                for source in MATRIX_SOURCES
+            ]
+            
+            # Собираем информацию с сайтов
+            async with WebScraper() as scraper:
+                scraped_data = await scraper.scrape_multiple_sites(sources_config)
+            
+            # Обрабатываем собранные данные
+            processed_data = self.text_processor.process_matrix_data(
+                scraped_data, 
+                result, 
+                keywords=MATRIX_KEYWORDS
+            )
+            
+            return processed_data
+        except Exception as e:
+            logger.error(f"Ошибка при сборе дополнительной информации: {e}")
+            return {
+                'summary': '',
+                'detailed_info': '',
+                'images': []
+            }
+    
+    def generate_text_report(self, data: MatrixData, result: MatrixResult, 
+                           additional_info: Optional[Dict] = None) -> str:
         """Генерирует текстовый отчет"""
+        # Базовый отчет
         report = f"""
 ╔════════════════════════════════════════╗
 ║     ЛИЧНАЯ МАТРИЦА СУДЬБЫ              ║
@@ -74,12 +134,52 @@ class ReportGenerator:
 📖 ПОЛНЫЕ ИНТЕРПРЕТАЦИИ:
 
 {self._format_interpretations(result.interpretations)}
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-✨ Отчет сгенерирован автоматически
 """
+        
+        # Добавляем дополнительную информацию, если есть
+        if additional_info:
+            if additional_info.get('summary'):
+                report += f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                report += f"📚 КРАТКОЕ РЕЗЮМЕ ИЗ ИСТОЧНИКОВ:\n\n"
+                report += f"{additional_info['summary'][:500]}...\n"
+            
+            if additional_info.get('detailed_info'):
+                report += additional_info['detailed_info']
+        
+        report += f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        report += f"✨ Отчет сгенерирован автоматически\n"
+        
         return report
+    
+    async def generate_enhanced_report(self, data: MatrixData, result: MatrixResult) -> Dict[str, any]:
+        """Генерирует расширенный отчет с информацией с веб-сайтов"""
+        # Собираем дополнительную информацию
+        additional_info = await self._collect_additional_info(result)
+        
+        # Генерируем текстовый отчет
+        text_report = self.generate_text_report(data, result, additional_info)
+        
+        # Генерируем визуализацию матрицы
+        visual_matrix = self.generate_visual_matrix(result)
+        
+        # Обрабатываем изображения с сайтов
+        processed_images = []
+        if additional_info.get('images'):
+            try:
+                async with ImageProcessor() as img_processor:
+                    processed_images = await img_processor.process_images(
+                        additional_info['images'],
+                        max_images=3
+                    )
+            except Exception as e:
+                logger.error(f"Ошибка при обработке изображений: {e}")
+        
+        return {
+            'text_report': text_report,
+            'visual_matrix': visual_matrix,
+            'additional_images': processed_images,
+            'summary': additional_info.get('summary', '')
+        }
     
     def _format_interpretations(self, interpretations: Dict[str, str]) -> str:
         """Форматирует интерпретации"""

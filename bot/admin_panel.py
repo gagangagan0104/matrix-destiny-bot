@@ -23,7 +23,14 @@ async def admin_check(update: Update) -> bool:
 async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Главная панель администратора"""
     if not await admin_check(update):
-        await update.message.reply_text("❌ У вас нет доступа к админ-панели.")
+        await update.message.reply_text(
+            "╔═══════════════════════════════════╗\n"
+            "║   ❌ ДОСТУП ЗАПРЕЩЕН            ║\n"
+            "╚═══════════════════════════════════╝\n\n"
+            "🔒 <b>У вас нет доступа к админ-панели</b>\n\n"
+            "Обратитесь к администратору для получения доступа.",
+            parse_mode=ParseMode.HTML
+        )
         return
     
     db = get_db_sync()
@@ -51,25 +58,34 @@ async def admin_panel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ).count()
         
         stats_text = f"""
-🔐 <b>Админ-панель</b>
+╔═══════════════════════════════════╗
+║   🔐 АДМИН-ПАНЕЛЬ                ║
+╚═══════════════════════════════════╝
 
-📊 <b>Общая статистика:</b>
-• Всего клиентов: {total_clients}
-• Всего расчетов: {total_calculations}
+📊 <b>ОБЩАЯ СТАТИСТИКА</b>
+{'─' * 30}
+👥 Всего клиентов: <b>{total_clients}</b>
+📈 Всего расчетов: <b>{total_calculations}</b>
 
-📈 <b>За сегодня:</b>
-• Новых клиентов: {clients_today}
-• Расчетов: {calculations_today}
+📅 <b>ЗА СЕГОДНЯ</b>
+{'─' * 30}
+✨ Новых клиентов: <b>{clients_today}</b>
+🔢 Расчетов: <b>{calculations_today}</b>
 
-📅 <b>За последние 7 дней:</b>
-• Новых клиентов: {clients_week}
-• Расчетов: {calculations_week}
+📆 <b>ЗА ПОСЛЕДНИЕ 7 ДНЕЙ</b>
+{'─' * 30}
+✨ Новых клиентов: <b>{clients_week}</b>
+🔢 Расчетов: <b>{calculations_week}</b>
+
+💡 <i>Выберите раздел для управления</i>
 """
         
         keyboard = [
             [InlineKeyboardButton("👥 Управление клиентами", callback_data="admin_clients")],
-            [InlineKeyboardButton("📊 Детальная статистика", callback_data="admin_stats")],
-            [InlineKeyboardButton("📝 Последние расчеты", callback_data="admin_recent")],
+            [
+                InlineKeyboardButton("📊 Статистика", callback_data="admin_stats"),
+                InlineKeyboardButton("📝 Последние расчеты", callback_data="admin_recent")
+            ],
             [InlineKeyboardButton("⚙️ Настройки", callback_data="admin_settings")],
             [InlineKeyboardButton("🔙 Главное меню", callback_data="back_to_main")]
         ]
@@ -90,7 +106,14 @@ async def admin_clients(update: Update, context: ContextTypes.DEFAULT_TYPE, page
     await query.answer()
     
     if not await admin_check(update):
-        await query.edit_message_text("❌ У вас нет доступа.")
+        await query.edit_message_text(
+            "╔═══════════════════════════════════╗\n"
+            "║   ❌ ДОСТУП ЗАПРЕЩЕН            ║\n"
+            "╚═══════════════════════════════════╝\n\n"
+            "🔒 <b>У вас нет доступа</b>\n\n"
+            "Обратитесь к администратору.",
+            parse_mode=ParseMode.HTML
+        )
         return
     
     db = get_db_sync()
@@ -103,17 +126,35 @@ async def admin_clients(update: Update, context: ContextTypes.DEFAULT_TYPE, page
         total_pages = (total + per_page - 1) // per_page
         
         if not clients:
-            await query.edit_message_text("📭 Клиентов пока нет.")
+            keyboard = [[InlineKeyboardButton("🔙 Назад в админ-панель", callback_data="admin_panel")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                "╔═══════════════════════════════════╗\n"
+                "║   👥 УПРАВЛЕНИЕ КЛИЕНТАМИ        ║\n"
+                "╚═══════════════════════════════════╝\n\n"
+                "📭 <b>Клиентов пока нет</b>\n\n"
+                "Как только появятся первые клиенты, они отобразятся здесь.",
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML
+            )
             return
         
-        text = f"👥 <b>Клиенты</b> (стр. {page + 1}/{total_pages})\n\n"
+        text = (
+            f"╔═══════════════════════════════════╗\n"
+            f"║   👥 УПРАВЛЕНИЕ КЛИЕНТАМИ        ║\n"
+            f"╚═══════════════════════════════════╝\n\n"
+            f"📄 <b>Страница {page + 1} из {total_pages}</b>\n"
+            f"{'─' * 30}\n\n"
+        )
         
         for i, client in enumerate(clients, start=offset + 1):
             calc_count = len(client.calculations)
-            text += f"{i}. <b>{client.name}</b>\n"
-            text += f"   📅 {client.birth_date.strftime('%d.%m.%Y')}\n"
-            text += f"   📊 Расчетов: {calc_count}\n"
-            text += f"   🆔 ID: {client.id}\n\n"
+            created_date = client.created_at.strftime('%d.%m.%Y') if hasattr(client, 'created_at') else 'N/A'
+            text += f"<b>{i}.</b> 👤 <b>{client.name}</b>\n"
+            text += f"   📅 Дата рождения: {client.birth_date.strftime('%d.%m.%Y')}\n"
+            text += f"   📊 Расчетов: <b>{calc_count}</b>\n"
+            text += f"   🆔 ID: <code>{client.id}</code>\n"
+            text += f"   📝 Регистрация: {created_date}\n\n"
         
         keyboard = []
         
@@ -140,7 +181,14 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     if not await admin_check(update):
-        await query.edit_message_text("❌ У вас нет доступа.")
+        await query.edit_message_text(
+            "╔═══════════════════════════════════╗\n"
+            "║   ❌ ДОСТУП ЗАПРЕЩЕН            ║\n"
+            "╚═══════════════════════════════════╝\n\n"
+            "🔒 <b>У вас нет доступа</b>\n\n"
+            "Обратитесь к администратору.",
+            parse_mode=ParseMode.HTML
+        )
         return
     
     db = get_db_sync()
@@ -157,12 +205,23 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             func.date(MatrixCalculation.created_at)
         ).order_by(desc('date')).limit(7).all()
         
-        text = "📊 <b>Детальная статистика</b>\n\n"
-        text += "<b>Расчеты за последние 7 дней:</b>\n"
+        text = (
+            "╔═══════════════════════════════════╗\n"
+            "║   📊 ДЕТАЛЬНАЯ СТАТИСТИКА        ║\n"
+            "╚═══════════════════════════════════╝\n\n"
+        )
         
-        for stat in daily_stats:
-            date_str = stat.date.strftime('%d.%m')
-            text += f"• {date_str}: {stat.count} расчетов\n"
+        text += f"📈 <b>РАСЧЕТЫ ЗА ПОСЛЕДНИЕ 7 ДНЕЙ</b>\n{'─' * 30}\n"
+        
+        if daily_stats:
+            for stat in daily_stats:
+                date_str = stat.date.strftime('%d.%m')
+                bar_length = min(int(stat.count / max([s.count for s in daily_stats], default=1) * 20), 20)
+                bar = "█" * bar_length + "░" * (20 - bar_length)
+                text += f"📅 {date_str}: <b>{stat.count}</b> расчетов\n"
+                text += f"   <code>{bar}</code>\n\n"
+        else:
+            text += "📭 Нет данных за этот период\n\n"
         
         # Топ клиентов
         top_clients = db.query(
@@ -175,9 +234,14 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             Client.id, Client.name
         ).order_by(desc('calc_count')).limit(5).all()
         
-        text += "\n<b>Топ-5 активных клиентов:</b>\n"
-        for i, (client_id, name, count) in enumerate(top_clients, 1):
-            text += f"{i}. {name}: {count} расчетов\n"
+        text += f"🏆 <b>ТОП-5 АКТИВНЫХ КЛИЕНТОВ</b>\n{'─' * 30}\n"
+        if top_clients:
+            medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣"]
+            for i, (client_id, name, count) in enumerate(top_clients, 1):
+                medal = medals[i-1] if i <= 3 else f"{i}."
+                text += f"{medal} <b>{name}</b>: <code>{count}</code> расчетов\n"
+        else:
+            text += "📭 Нет данных\n"
         
         keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -193,7 +257,14 @@ async def admin_recent(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     if not await admin_check(update):
-        await query.edit_message_text("❌ У вас нет доступа.")
+        await query.edit_message_text(
+            "╔═══════════════════════════════════╗\n"
+            "║   ❌ ДОСТУП ЗАПРЕЩЕН            ║\n"
+            "╚═══════════════════════════════════╝\n\n"
+            "🔒 <b>У вас нет доступа</b>\n\n"
+            "Обратитесь к администратору.",
+            parse_mode=ParseMode.HTML
+        )
         return
     
     db = get_db_sync()
@@ -203,17 +274,32 @@ async def admin_recent(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ).limit(10).all()
         
         if not recent:
-            await query.edit_message_text("📭 Расчетов пока нет.")
+            keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            await query.edit_message_text(
+                "╔═══════════════════════════════════╗\n"
+                "║   📝 ПОСЛЕДНИЕ РАСЧЕТЫ            ║\n"
+                "╚═══════════════════════════════════╝\n\n"
+                "📭 <b>Расчетов пока нет</b>\n\n"
+                "Как только появятся первые расчеты, они отобразятся здесь.",
+                reply_markup=reply_markup,
+                parse_mode=ParseMode.HTML
+            )
             return
         
-        text = "📝 <b>Последние расчеты</b>\n\n"
+        text = (
+            "╔═══════════════════════════════════╗\n"
+            "║   📝 ПОСЛЕДНИЕ РАСЧЕТЫ            ║\n"
+            "╚═══════════════════════════════════╝\n\n"
+        )
         
-        for calc in recent:
+        for i, calc in enumerate(recent, 1):
             client = calc.client
             time_str = calc.created_at.strftime('%d.%m.%Y %H:%M')
-            text += f"• <b>{client.name}</b>\n"
-            text += f"  {time_str}\n"
-            text += f"  🆔 Расчет #{calc.id}\n\n"
+            text += f"<b>{i}.</b> 👤 <b>{client.name}</b>\n"
+            text += f"   📅 {time_str}\n"
+            text += f"   🆔 ID: <code>{calc.id}</code>\n"
+            text += f"   📊 Клиент ID: <code>{client.id}</code>\n\n"
         
         keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -229,20 +315,29 @@ async def admin_settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     
     if not await admin_check(update):
-        await query.edit_message_text("❌ У вас нет доступа.")
+        await query.edit_message_text(
+            "╔═══════════════════════════════════╗\n"
+            "║   ❌ ДОСТУП ЗАПРЕЩЕН            ║\n"
+            "╚═══════════════════════════════════╝\n\n"
+            "🔒 <b>У вас нет доступа</b>\n\n"
+            "Обратитесь к администратору.",
+            parse_mode=ParseMode.HTML
+        )
         return
     
-    text = """
-⚙️ <b>Настройки</b>
-
-Здесь можно настроить:
-• Уведомления о новых расчетах
-• Автоматические рассылки
-• Шаблоны сообщений
-• И другие параметры
-
-(Функционал в разработке)
-"""
+    text = (
+        "╔═══════════════════════════════════╗\n"
+        "║   ⚙️ НАСТРОЙКИ                    ║\n"
+        "╚═══════════════════════════════════╝\n\n"
+        "🔧 <b>ДОСТУПНЫЕ НАСТРОЙКИ</b>\n"
+        "─" * 30 + "\n"
+        "📢 Уведомления о новых расчетах\n"
+        "📨 Автоматические рассылки\n"
+        "📝 Шаблоны сообщений\n"
+        "🔐 Управление правами доступа\n"
+        "📊 Настройки аналитики\n\n"
+        "💡 <i>Расширенный функционал в разработке</i>"
+    )
     
     keyboard = [[InlineKeyboardButton("🔙 Назад", callback_data="admin_panel")]]
     reply_markup = InlineKeyboardMarkup(keyboard)

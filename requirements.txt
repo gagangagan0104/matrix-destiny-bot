@@ -22,3 +22,8 @@ python-dateutil==2.8.2
 
 # Utilities
 aiofiles==23.2.1
+
+# Web scraping
+beautifulsoup4==4.12.2
+aiohttp==3.9.1
+lxml==4.9.3
